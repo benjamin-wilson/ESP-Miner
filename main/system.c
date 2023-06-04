@@ -17,7 +17,7 @@
 static const char *TAG = "system";
 
 #define BM1397_VOLTAGE CONFIG_BM1397_VOLTAGE
-#define HISTORY_LENGTH 10
+#define HISTORY_LENGTH 25
 #define HISTORY_WINDOW_SIZE 5
 
 static char oled_buf[20];
@@ -34,18 +34,18 @@ static int historical_hashrate_init = 0;
 static double current_hashrate = 0;
 
 
-void logArrayContents(const double* array, size_t length) {
-    char logMessage[1024];  // Adjust the buffer size as needed
-    int offset = 0;
+// void logArrayContents(const double* array, size_t length) {
+//     char logMessage[1024];  // Adjust the buffer size as needed
+//     int offset = 0;
     
-    offset += snprintf(logMessage + offset, sizeof(logMessage) - offset, "Array Contents: [");
+//     offset += snprintf(logMessage + offset, sizeof(logMessage) - offset, "Array Contents: [");
     
-    for (size_t i = 0; i < length; i++) {
-        offset += snprintf(logMessage + offset, sizeof(logMessage) - offset, "%.1f%s", array[i], (i < length - 1) ? ", " : "]");
-    }
+//     for (size_t i = 0; i < length; i++) {
+//         offset += snprintf(logMessage + offset, sizeof(logMessage) - offset, "%.1f%s", array[i], (i < length - 1) ? ", " : "]");
+//     }
     
-    ESP_LOGI(TAG, "%s", logMessage);
-}
+//     ESP_LOGI(TAG, "%s", logMessage);
+// }
 
 void update_hashrate(void){
 
@@ -110,8 +110,8 @@ void notify_system_found_nonce(double nonce_diff){
 
     update_hashrate();
 
-    logArrayContents(historical_hashrate, HISTORY_LENGTH);
-    logArrayContents(historical_hashrate_time_stamps, HISTORY_LENGTH);
+    // logArrayContents(historical_hashrate, HISTORY_LENGTH);
+    // logArrayContents(historical_hashrate_time_stamps, HISTORY_LENGTH);
     
 }
 
