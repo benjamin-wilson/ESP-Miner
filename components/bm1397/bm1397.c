@@ -15,7 +15,7 @@
 #include "mining.h"
 #include "global_state.h"
 
-#define BM1397_RST_PIN GPIO_NUM_1
+#define BM1397_RST_PIN GPIO_NUM_3
 
 #define TYPE_JOB 0x20
 #define TYPE_CMD 0x40
@@ -307,6 +307,9 @@ int BM1397_set_max_baud(void)
 
 void BM1397_set_job_difficulty_mask(int difficulty)
 {
+
+
+    difficulty = 256;
 
     // Default mask of 256 diff
     unsigned char job_difficulty_mask[9] = {0x00, TICKET_MASK, 0b00000000, 0b00000000, 0b00000000, 0b11111111};

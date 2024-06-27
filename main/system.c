@@ -76,15 +76,15 @@ static void _init_system(GlobalState * global_state, SystemModule * module)
 
     // Init I2C
     ESP_ERROR_CHECK(i2c_master_init());
-    ESP_LOGI(TAG, "I2C initialized successfully");
+    //ESP_LOGI(TAG, "I2C initialized successfully");
 
-    ADC_init();
+    //ADC_init();
 
     // DS4432U tests
-    DS4432U_set_vcore(nvs_config_get_u16(NVS_CONFIG_ASIC_VOLTAGE, CONFIG_ASIC_VOLTAGE) / 1000.0);
+    //DS4432U_set_vcore(nvs_config_get_u16(NVS_CONFIG_ASIC_VOLTAGE, CONFIG_ASIC_VOLTAGE) / 1000.0);
 
-    EMC2101_init(nvs_config_get_u16(NVS_CONFIG_INVERT_FAN_POLARITY, 1));
-    EMC2101_set_fan_speed(1);
+    //EMC2101_init(nvs_config_get_u16(NVS_CONFIG_INVERT_FAN_POLARITY, 1));
+    //EMC2101_set_fan_speed(1);
 
     vTaskDelay(500 / portTICK_PERIOD_MS);
 

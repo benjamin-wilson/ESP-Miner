@@ -82,11 +82,11 @@ void POWER_MANAGEMENT_task(void * pvParameters)
             power_management->power = INA260_read_power() / 1000;
             power_management->current = INA260_read_current();
         }
-        power_management->fan_speed = EMC2101_get_fan_speed();
+        //power_management->fan_speed = EMC2101_get_fan_speed();
 
         if (strcmp(GLOBAL_STATE->asic_model, "BM1397") == 0) {
 
-            power_management->chip_temp = EMC2101_get_external_temp();
+            //power_management->chip_temp = EMC2101_get_external_temp();
 
             // Voltage
             // We'll throttle between 4.9v and 3.5v
@@ -123,26 +123,26 @@ void POWER_MANAGEMENT_task(void * pvParameters)
                 esp_restart();
             }
 
-            if (power_management->frequency_value > target_frequency) {
-                power_management->frequency_value = target_frequency;
-                last_frequency_increase = 0;
-                BM1397_send_hash_frequency(power_management->frequency_value);
-                ESP_LOGI(TAG, "target %f, Freq %f, Temp %f, Power %f", target_frequency, power_management->frequency_value,
-                         power_management->chip_temp, power_management->power);
-            } else {
-                if (last_frequency_increase > 120 && power_management->frequency_value != frequency_target) {
-                    float add = (target_frequency + power_management->frequency_value) / 2;
-                    power_management->frequency_value += _fbound(add, 2, 20);
-                    BM1397_send_hash_frequency(power_management->frequency_value);
-                    ESP_LOGI(TAG, "target %f, Freq %f, Temp %f, Power %f", target_frequency, power_management->frequency_value,
-                             power_management->chip_temp, power_management->power);
-                    last_frequency_increase = 60;
-                } else {
-                    last_frequency_increase++;
-                }
-            }
+            // if (power_management->frequency_value > target_frequency) {
+            //     power_management->frequency_value = target_frequency;
+            //     last_frequency_increase = 0;
+            //     BM1397_send_hash_frequency(power_management->frequency_value);
+            //     ESP_LOGI(TAG, "target %f, Freq %f, Temp %f, Power %f", target_frequency, power_management->frequency_value,
+            //              power_management->chip_temp, power_management->power);
+            // } else {
+            //     if (last_frequency_increase > 120 && power_management->frequency_value != frequency_target) {
+            //         float add = (target_frequency + power_management->frequency_value) / 2;
+            //         power_management->frequency_value += _fbound(add, 2, 20);
+            //         BM1397_send_hash_frequency(power_management->frequency_value);
+            //         ESP_LOGI(TAG, "target %f, Freq %f, Temp %f, Power %f", target_frequency, power_management->frequency_value,
+            //                  power_management->chip_temp, power_management->power);
+            //         last_frequency_increase = 60;
+            //     } else {
+            //         last_frequency_increase++;
+            //     }
+            // }
         } else if (strcmp(GLOBAL_STATE->asic_model, "BM1366") == 0 || strcmp(GLOBAL_STATE->asic_model, "BM1368") == 0) {
-            power_management->chip_temp = EMC2101_get_internal_temp() + 5;
+            //power_management->chip_temp = EMC2101_get_internal_temp() + 5;
 
             if (power_management->chip_temp > THROTTLE_TEMP &&
                 (power_management->frequency_value > 50 || power_management->voltage > 1000)) {
@@ -165,7 +165,7 @@ void POWER_MANAGEMENT_task(void * pvParameters)
         if (auto_fan_speed == 1) {
             automatic_fan_speed(power_management->chip_temp);
         } else {
-            EMC2101_set_fan_speed((float) nvs_config_get_u16(NVS_CONFIG_FAN_SPEED, 100) / 100);
+            //EMC2101_set_fan_speed((float) nvs_config_get_u16(NVS_CONFIG_FAN_SPEED, 100) / 100);
         }
         // ESP_LOGI(TAG, "target %f, Freq %f, Volt %f, Power %f", target_frequency, power_management->frequency_value,
         // power_management->voltage, power_management->power);
@@ -201,5 +201,5 @@ static void automatic_fan_speed(float chip_temp)
         result = ((chip_temp - min_temp) / temp_range) * fan_range + min_fan_speed;
     }
 
-    EMC2101_set_fan_speed((float) result / 100);
+    //EMC2101_set_fan_speed((float) result / 100);
 }
