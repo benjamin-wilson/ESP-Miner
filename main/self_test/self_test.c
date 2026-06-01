@@ -62,83 +62,30 @@ typedef struct {
     uint64_t last_sample_time_us;
 } SelfTestDomainAverage;
 
-typedef struct {
-    int asic_count;
-    int hash_domains;
-    SelfTestDomainAverage *domains;
-} SelfTestDomainAverages;
-
 typedef enum {
     SELF_TEST_DOMAIN_OK,
     SELF_TEST_DOMAIN_FAIL,
     SELF_TEST_DOMAIN_UNRELIABLE,
 } SelfTestDomainStatus;
 
-static size_t self_test_domain_index(const SelfTestDomainAverages * averages, int asic_nr, int domain_nr)
-{
-    return (size_t)asic_nr * averages->hash_domains + domain_nr;
-}
-
-static SelfTestDomainAverage * self_test_domain_get(SelfTestDomainAverages * averages, int asic_nr, int domain_nr)
-{
-    return &averages->domains[self_test_domain_index(averages, asic_nr, domain_nr)];
-}
-
-static esp_err_t self_test_domain_averages_init(SelfTestDomainAverages * averages, int asic_count, int hash_domains)
-{
-    memset(averages, 0, sizeof(*averages));
-    averages->asic_count = asic_count;
-    averages->hash_domains = hash_domains;
-
-    size_t domain_count = (size_t)asic_count * hash_domains;
-    averages->domains = calloc(domain_count, sizeof(*averages->domains));
-    if (!averages->domains) {
-        memset(averages, 0, sizeof(*averages));
-        return ESP_ERR_NO_MEM;
-    }
-
-    return ESP_OK;
-}
-
-static void self_test_domain_averages_free(SelfTestDomainAverages * averages)
-{
-    free(averages->domains);
-    memset(averages, 0, sizeof(*averages));
-}
-
-static void self_test_domain_averages_prime(GlobalState * GLOBAL_STATE, SelfTestDomainAverages * averages)
-{
-    HashrateMonitorModule * monitor = &GLOBAL_STATE->HASHRATE_MONITOR_MODULE;
-    if (!monitor->is_initialized || !averages->domains) {
-        return;
-    }
-
-    pthread_mutex_lock(&monitor->lock);
-    for (int asic_nr = 0; asic_nr < averages->asic_count; asic_nr++) {
-        for (int domain_nr = 0; domain_nr < averages->hash_domains; domain_nr++) {
-            SelfTestDomainAverage * average = self_test_domain_get(averages, asic_nr, domain_nr);
-            average->last_sample_time_us = monitor->domain_measurements[asic_nr][domain_nr].time_us;
-        }
-    }
-    pthread_mutex_unlock(&monitor->lock);
-}
-
 static void self_test_domain_averages_sample(GlobalState * GLOBAL_STATE,
-                                             SelfTestDomainAverages * averages,
+                                             SelfTestDomainAverage * averages,
+                                             int asic_count,
+                                             int hash_domains,
                                              float expected_domain_hashrate)
 {
     HashrateMonitorModule * monitor = &GLOBAL_STATE->HASHRATE_MONITOR_MODULE;
-    if (!monitor->is_initialized || !averages->domains) {
+    if (!monitor->is_initialized || !averages) {
         return;
     }
 
     float max_plausible_hashrate = expected_domain_hashrate * 3.0f;
 
     pthread_mutex_lock(&monitor->lock);
-    for (int asic_nr = 0; asic_nr < averages->asic_count; asic_nr++) {
-        for (int domain_nr = 0; domain_nr < averages->hash_domains; domain_nr++) {
+    for (int asic_nr = 0; asic_nr < asic_count; asic_nr++) {
+        for (int domain_nr = 0; domain_nr < hash_domains; domain_nr++) {
             measurement_t measurement = monitor->domain_measurements[asic_nr][domain_nr];
-            SelfTestDomainAverage * average = self_test_domain_get(averages, asic_nr, domain_nr);
+            SelfTestDomainAverage * average = &averages[asic_nr * hash_domains + domain_nr];
 
             if (measurement.time_us == 0 || measurement.time_us == average->last_sample_time_us) {
                 continue;
@@ -164,15 +111,6 @@ static void self_test_domain_averages_sample(GlobalState * GLOBAL_STATE,
     pthread_mutex_unlock(&monitor->lock);
 }
 
-static const SelfTestDomainAverage * self_test_domain_get_const(const SelfTestDomainAverages * averages, int asic_nr, int domain_nr)
-{
-    return &averages->domains[self_test_domain_index(averages, asic_nr, domain_nr)];
-}
-
-static float self_test_domain_average_hashrate(const SelfTestDomainAverage * average)
-{
-    return average->sample_count > 0 ? average->hashrate_sum / average->sample_count : 0.0f;
-}
 
 static void self_test_set_fan_percent(GlobalState * GLOBAL_STATE, float fan_percent)
 {
@@ -577,15 +515,27 @@ void self_test_task(void * pvParameters)
                                      GLOBAL_STATE->DEVICE_CONFIG.family.asic.hash_domains /
                                      GLOBAL_STATE->DEVICE_CONFIG.family.asic_count;
 
-    SelfTestDomainAverages domain_averages;
-    if (self_test_domain_averages_init(&domain_averages,
-                                       GLOBAL_STATE->DEVICE_CONFIG.family.asic_count,
-                                       GLOBAL_STATE->DEVICE_CONFIG.family.asic.hash_domains) != ESP_OK) {
+    int asic_count = GLOBAL_STATE->DEVICE_CONFIG.family.asic_count;
+    int hash_domains = GLOBAL_STATE->DEVICE_CONFIG.family.asic.hash_domains;
+
+    SelfTestDomainAverage *domain_averages = calloc(asic_count * hash_domains, sizeof(SelfTestDomainAverage));
+    if (!domain_averages) {
         ESP_LOGE(TAG, "Failed to allocate domain hashrate averages");
         self_test_show_message(GLOBAL_STATE, "MEM:FAIL");
         tests_done(GLOBAL_STATE, false);
     }
-    self_test_domain_averages_prime(GLOBAL_STATE, &domain_averages);
+
+    // Prime the last sample timestamps from hashrate monitor if initialized
+    if (GLOBAL_STATE->HASHRATE_MONITOR_MODULE.is_initialized) {
+        pthread_mutex_lock(&GLOBAL_STATE->HASHRATE_MONITOR_MODULE.lock);
+        for (int asic_nr = 0; asic_nr < asic_count; asic_nr++) {
+            for (int domain_nr = 0; domain_nr < hash_domains; domain_nr++) {
+                domain_averages[asic_nr * hash_domains + domain_nr].last_sample_time_us = 
+                    GLOBAL_STATE->HASHRATE_MONITOR_MODULE.domain_measurements[asic_nr][domain_nr].time_us;
+            }
+        }
+        pthread_mutex_unlock(&GLOBAL_STATE->HASHRATE_MONITOR_MODULE.lock);
+    }
 
     self_test_start_nonce_measurement(GLOBAL_STATE);
     ESP_LOGI(TAG, "Starting 30s hashrate monitoring loop, target temp %.1f°C", SELF_TEST_TARGET_TEMP_C);
@@ -602,6 +552,7 @@ void self_test_task(void * pvParameters)
             ESP_LOGE(TAG, "Overheat: %.1f°C", asic_temp);
             snprintf(logString, sizeof(logString), "TEMP:FAIL: %.1f°C", asic_temp);
             self_test_show_message(GLOBAL_STATE, logString);
+            free(domain_averages);
             tests_done(GLOBAL_STATE, false);
         }
 
@@ -611,12 +562,12 @@ void self_test_task(void * pvParameters)
 
         self_test_show_message(GLOBAL_STATE, logString);
 
-        self_test_domain_averages_sample(GLOBAL_STATE, &domain_averages, expected_domain_hashrate);
+        self_test_domain_averages_sample(GLOBAL_STATE, domain_averages, asic_count, hash_domains, expected_domain_hashrate);
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
     self_test_stop_nonce_measurement(GLOBAL_STATE);
     hashrate = self_test_get_nonce_hashrate(GLOBAL_STATE, esp_timer_get_time() - start_us);
-    self_test_domain_averages_sample(GLOBAL_STATE, &domain_averages, expected_domain_hashrate);
+    self_test_domain_averages_sample(GLOBAL_STATE, domain_averages, asic_count, hash_domains, expected_domain_hashrate);
 
     uint64_t accepted_count;
     uint64_t rejected_count;
@@ -630,11 +581,10 @@ void self_test_task(void * pvParameters)
     // Check domain hashrates from monitor module
     bool domain_failed = false;
     uint32_t failed_asic_mask = 0;
-    for (int asic_nr = 0; asic_nr < GLOBAL_STATE->DEVICE_CONFIG.family.asic_count; asic_nr++) {
-        int hash_domains = GLOBAL_STATE->DEVICE_CONFIG.family.asic.hash_domains;
+    for (int asic_nr = 0; asic_nr < asic_count; asic_nr++) {
         for (int domain_nr = 0; domain_nr < hash_domains; domain_nr++) {
-            const SelfTestDomainAverage * domain_average = self_test_domain_get_const(&domain_averages, asic_nr, domain_nr);
-            float domain_hashrate = self_test_domain_average_hashrate(domain_average);
+            const SelfTestDomainAverage * domain_average = &domain_averages[asic_nr * hash_domains + domain_nr];
+            float domain_hashrate = domain_average->sample_count > 0 ? domain_average->hashrate_sum / domain_average->sample_count : 0.0f;
             uint32_t sample_count = domain_average->sample_count;
             uint32_t rejected_sample_count = domain_average->rejected_sample_count;
             uint32_t total_domain_samples = sample_count + rejected_sample_count;
@@ -692,7 +642,9 @@ void self_test_task(void * pvParameters)
             }
         }
     }
-    self_test_domain_averages_free(&domain_averages);
+
+    free(domain_averages);
+
     if (domain_failed) {
         if (GLOBAL_STATE->DEVICE_CONFIG.family.asic_count == 2 && failed_asic_mask == 0x3) {
             self_test_show_message(GLOBAL_STATE, "BOTH ASICS DOMAIN:FAIL");
