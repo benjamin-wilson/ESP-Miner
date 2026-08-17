@@ -703,6 +703,7 @@ components:
             - BM1368
             - BM1370
             - BM1397
+            - BM1373
           examples:
             - "BM1366"
         deviceModel:
