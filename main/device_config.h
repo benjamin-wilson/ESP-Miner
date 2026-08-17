@@ -30,8 +30,6 @@ typedef struct {
     uint16_t core_count;
     uint16_t small_core_count;
     uint8_t hash_domains;
-    // Multiplier for the ASIC's returned nonce-counter unit (defaults to 1).
-    float hash_counter_scale;
     uint16_t default_asic_timeout;
     // test values
     float hashrate_test_percentage_target;
@@ -85,6 +83,7 @@ typedef struct {
     bool TPS546  : 1;
     // test values
     uint16_t power_consumption_target;
+    uint16_t power_consumption_margin;
 } DeviceConfig;
 
 static const uint16_t BM1397_FREQUENCY_OPTIONS[]   = {400, 425, 450, 475, 485, 500, 525, 550, 575, 600, 0};
@@ -105,7 +104,7 @@ static const AsicConfig ASIC_BM1366 = { .id = BM1366, .name = "BM1366", .chip_id
 static const AsicConfig ASIC_BM1368 = { .id = BM1368, .name = "BM1368", .chip_id = 1368, .default_frequency_mhz = 490, .frequency_options = BM1368_FREQUENCY_OPTIONS, .default_voltage_mv = 1166, .voltage_options = BM1368_VOLTAGE_OPTIONS, .difficulty = 256, .core_count =  80, .small_core_count = 1276, .hash_domains = 4, .hashrate_test_percentage_target = 0.80, .default_asic_timeout = 500};
 static const AsicConfig ASIC_BM1370 = { .id = BM1370, .name = "BM1370", .chip_id = 1370, .default_frequency_mhz = 525, .frequency_options = BM1370_FREQUENCY_OPTIONS, .default_voltage_mv = 1150, .voltage_options = BM1370_VOLTAGE_OPTIONS, .difficulty = 256, .core_count = 128, .small_core_count = 2040, .hash_domains = 4, .hashrate_test_percentage_target = 0.85, .default_asic_timeout = 500};
 static const AsicConfig ASIC_BM1370XP = { .id = BM1370, .name = "BM1370", .chip_id = 1370, .default_frequency_mhz = 400, .frequency_options = BM1370_FRQUENCY_XP_OPTIONS, .default_voltage_mv = 1150, .voltage_options = BM1370_VOLTAGE_OPTIONS, .difficulty = 256, .core_count = 128, .small_core_count = 2040, .hash_domains = 4, .hashrate_test_percentage_target = 0.85, .default_asic_timeout = 500};
-static const AsicConfig ASIC_BM1373 = { .id = BM1373, .name = "BM1372/BM1373", .chip_id = 1372, .default_frequency_mhz = 327, .frequency_options = BM1373_FREQUENCY_OPTIONS, .default_voltage_mv = 1000, .voltage_options = BM1373_VOLTAGE_OPTIONS, .difficulty = 256, .core_count = 128, .small_core_count = 6725, .hash_domains = 4, .hash_counter_scale = 2.0f, .hashrate_test_percentage_target = 0.85, .default_asic_timeout = 500};
+static const AsicConfig ASIC_BM1373 = { .id = BM1373, .name = "BM1372/BM1373", .chip_id = 1372, .default_frequency_mhz = 327, .frequency_options = BM1373_FREQUENCY_OPTIONS, .default_voltage_mv = 1000, .voltage_options = BM1373_VOLTAGE_OPTIONS, .difficulty = 256, .core_count = 128, .small_core_count = 6725, .hash_domains = 4, .hashrate_test_percentage_target = 0.85, .default_asic_timeout = 500};
 
 static const AsicConfig default_asic_configs[] = {
     ASIC_BM1397,
@@ -161,7 +160,7 @@ static const DeviceConfig default_configs[] = {
     { .board_version = "701",  .family = FAMILY_SUPRA_HEX,   .EMC2302 = true, .TMP1075 = true,                                            .temp_offset = 10,  .TPS546 = true,                                                           .power_consumption_target = 90, },
     { .board_version = "702",  .family = FAMILY_SUPRA_HEX,   .EMC2302 = true, .TMP1075 = true,                                            .temp_offset = 10,  .TPS546 = true,                                                           .power_consumption_target = 90, },
     { .board_version = "801",  .family = FAMILY_GAMMA_TURBO, .EMC2103 = true,                                          .temp_flip = true, .temp_offset = 0,   .TPS546 = true,                                                           .power_consumption_target = 36, },
-    { .board_version = "1201", .family = FAMILY_NAJA_DUO,    .asic_enable = true, .asic_enable_active_high = true, .disable_bap = true, .i2c_sda = 44, .i2c_scl = 43, .EMC2103 = true, .emc_ideality_factor = 0x17, .emc_beta_compensation = 0x10, .temp_offset = 0, .TPS546 = true, .power_consumption_target = 50, },
+    { .board_version = "1201", .family = FAMILY_NAJA_DUO,    .asic_enable = true, .asic_enable_active_high = true, .disable_bap = true, .i2c_sda = 44, .i2c_scl = 43, .EMC2103 = true, .emc_ideality_factor = 0x17, .emc_beta_compensation = 0x10, .temp_offset = 0, .TPS546 = true, .power_consumption_target = 50, .power_consumption_margin = 10, },
 };
 
 esp_err_t device_config_init(void * pvParameters);

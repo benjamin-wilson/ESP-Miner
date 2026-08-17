@@ -13,9 +13,9 @@
 #include "power.h"
 #include "nvs_config.h"
 #include "global_state.h"
+#include "asic.h"
 #include "asic_reset.h"
 #include "device_config.h"
-#include "hashrate_monitor_task.h"
 #include "PID.h"
 #include "self_test.h"
 
@@ -36,7 +36,7 @@
 #define SELF_TEST_CORE_VOLTAGE_TOLERANCE 0.10f
 
 // Test Power Consumption
-#define POWER_CONSUMPTION_MARGIN 3 //+/- watts
+#define DEFAULT_POWER_CONSUMPTION_MARGIN 3 // watts above target
 
 // Test Input Voltage
 #define INPUT_VOLTAGE_MARGIN 0.10f // +/- 10%
@@ -105,36 +105,38 @@ static void self_test_domain_averages_free(SelfTestDomainAverages * averages)
 
 static void self_test_domain_averages_prime(GlobalState * GLOBAL_STATE, SelfTestDomainAverages * averages)
 {
-    HashrateMonitorModule * monitor = &GLOBAL_STATE->HASHRATE_MONITOR_MODULE;
-    if (!monitor->is_initialized || !averages->domains) {
+    if (!averages->domains) {
         return;
     }
 
-    pthread_mutex_lock(&monitor->lock);
     for (int asic_nr = 0; asic_nr < averages->asic_count; asic_nr++) {
         for (int domain_nr = 0; domain_nr < averages->hash_domains; domain_nr++) {
+            asic_domain_measurement_t measurement;
+            if (ASIC_get_domain_measurement(GLOBAL_STATE, asic_nr, domain_nr, &measurement) != ESP_OK) {
+                continue;
+            }
             SelfTestDomainAverage * average = self_test_domain_get(averages, asic_nr, domain_nr);
-            average->last_sample_time_us = monitor->domain_measurements[asic_nr][domain_nr].time_us;
+            average->last_sample_time_us = measurement.time_us;
         }
     }
-    pthread_mutex_unlock(&monitor->lock);
 }
 
 static void self_test_domain_averages_sample(GlobalState * GLOBAL_STATE,
                                              SelfTestDomainAverages * averages,
                                              float expected_domain_hashrate)
 {
-    HashrateMonitorModule * monitor = &GLOBAL_STATE->HASHRATE_MONITOR_MODULE;
-    if (!monitor->is_initialized || !averages->domains) {
+    if (!averages->domains) {
         return;
     }
 
     float max_plausible_hashrate = expected_domain_hashrate * 3.0f;
 
-    pthread_mutex_lock(&monitor->lock);
     for (int asic_nr = 0; asic_nr < averages->asic_count; asic_nr++) {
         for (int domain_nr = 0; domain_nr < averages->hash_domains; domain_nr++) {
-            measurement_t measurement = monitor->domain_measurements[asic_nr][domain_nr];
+            asic_domain_measurement_t measurement;
+            if (ASIC_get_domain_measurement(GLOBAL_STATE, asic_nr, domain_nr, &measurement) != ESP_OK) {
+                continue;
+            }
             SelfTestDomainAverage * average = self_test_domain_get(averages, asic_nr, domain_nr);
 
             if (measurement.time_us == 0 || measurement.time_us == average->last_sample_time_us) {
@@ -158,7 +160,6 @@ static void self_test_domain_averages_sample(GlobalState * GLOBAL_STATE,
             average->sample_count++;
         }
     }
-    pthread_mutex_unlock(&monitor->lock);
 }
 
 static const SelfTestDomainAverage * self_test_domain_get_const(const SelfTestDomainAverages * averages, int asic_nr, int domain_nr)
@@ -372,19 +373,25 @@ static esp_err_t test_fan_sense(GlobalState * GLOBAL_STATE)
 static esp_err_t test_power_consumption(GlobalState * GLOBAL_STATE)
 {
     float target_power = (float) GLOBAL_STATE->DEVICE_CONFIG.power_consumption_target;
-    float margin = (float) POWER_CONSUMPTION_MARGIN;
+    float margin = (float) GLOBAL_STATE->DEVICE_CONFIG.power_consumption_margin;
+    if (margin <= 0.0f) {
+        margin = DEFAULT_POWER_CONSUMPTION_MARGIN;
+    }
+    float maximum_power = target_power + margin;
 
     float power = 0;
     float current = 0;
     
     Power_get_output(GLOBAL_STATE, &power, &current);
-    ESP_LOGI(TAG, "Power: %.2f W", power);
+    ESP_LOGI(TAG, "Power: %.2f W (target: %.2f W, maximum: %.2f W)",
+             power, target_power, maximum_power);
 
-    if (power <= target_power + margin) {
+    if (power <= maximum_power) {
         return ESP_OK;
     }
 
-    ESP_LOGE(TAG, "POWER test failed! measured %.2f W, target %.2f W +/- %.2f W", power, target_power, margin);
+    ESP_LOGE(TAG, "POWER test failed! measured %.2f W, maximum %.2f W",
+             power, maximum_power);
     self_test_show_message(GLOBAL_STATE, "POWER:FAIL");
     return ESP_FAIL;
 }
