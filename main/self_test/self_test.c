@@ -25,7 +25,6 @@
 // Test Fan Speed
 #define SELF_TEST_MIN_FAN_PERCENT 10.0f
 #define SELF_TEST_MAX_FAN_PERCENT 100.0f
-#define NAJA_DUO_FAN_SPEED_TOLERANCE_PERCENT 10
 #define SELF_TEST_PID_SAMPLE_TIME_MS 100
 #define SELF_TEST_PID_P 5.0f
 #define SELF_TEST_PID_I 0.1f
@@ -356,19 +355,11 @@ static esp_err_t test_fan_sense(GlobalState * GLOBAL_STATE)
     uint16_t target_speed = nvs_config_get_u16(NVS_CONFIG_SELF_TEST_FAN_SPEED);
 
     ESP_LOGI(TAG, "fanSpeed: %d RPM", fan_speed);
-    if (GLOBAL_STATE->DEVICE_CONFIG.family.id == GAMMA_TURBO) {
+    if (GLOBAL_STATE->DEVICE_CONFIG.family.id == GAMMA_TURBO ||
+        GLOBAL_STATE->DEVICE_CONFIG.family.id == NAJA_DUO) {
         target_speed = 500;
     }
-
-    if (GLOBAL_STATE->DEVICE_CONFIG.family.id == NAJA_DUO) {
-        uint16_t minimum_speed = target_speed -
-            (target_speed * NAJA_DUO_FAN_SPEED_TOLERANCE_PERCENT / 100);
-        ESP_LOGI(TAG, "Naja Duo fan minimum: %u RPM (target: %u RPM, tolerance: %u%%)",
-                 minimum_speed, target_speed, NAJA_DUO_FAN_SPEED_TOLERANCE_PERCENT);
-        if (fan_speed > 0 && fan_speed >= minimum_speed) {
-            return ESP_OK;
-        }
-    } else if (fan_speed > target_speed) {
+    if (fan_speed > target_speed) {
         return ESP_OK;
     }
 
