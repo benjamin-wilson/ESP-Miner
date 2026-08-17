@@ -29,6 +29,7 @@
 #define SELF_TEST_PID_P 5.0f
 #define SELF_TEST_PID_I 0.1f
 #define SELF_TEST_PID_D 2.0f
+#define SELF_TEST_POWER_MONITOR_STOP_MS 150
 #define SELF_TEST_DOMAIN_HASHRATE_TOLERANCE 0.33f
 #define SELF_TEST_DOMAIN_REJECTED_WARN_RATIO 0.25f
 
@@ -747,15 +748,18 @@ static void tests_done(GlobalState * GLOBAL_STATE, bool isTestPassed)
 {
     GLOBAL_STATE->SELF_TEST_MODULE.is_finished = true;
     self_test_stop_nonce_measurement(GLOBAL_STATE);
+    asic_hold_reset_low();
     if (VCORE_is_initialized()) {
+        // Let the power monitor observe is_finished and exit before VCORE is
+        // intentionally disabled, otherwise it can report the OFF status as a
+        // regulator fault during self-test cleanup.
+        vTaskDelay(pdMS_TO_TICKS(SELF_TEST_POWER_MONITOR_STOP_MS));
         if (VCORE_set_voltage(GLOBAL_STATE, 0.0f) != ESP_OK) {
             ESP_LOGE(TAG, "Failed to turn off VCORE after self-test");
         }
     } else {
         ESP_LOGW(TAG, "Skipping VCORE shutdown because the regulator was not initialized");
     }
-    asic_hold_reset_low();
-
     if (isTestPassed) {
         if (isFactoryTest) {
             ESP_LOGI(TAG, "Self-test flag cleared");

@@ -217,9 +217,13 @@ void app_main(void)
         }
     }
 
-    protocol_coordinator_init(&GLOBAL_STATE);
-    if (xTaskCreateWithCaps(protocol_coordinator_task, "protocol coord", 3072, (void *) &GLOBAL_STATE, 5, NULL, MALLOC_CAP_SPIRAM) != pdPASS) {
-        ESP_LOGE(TAG, "Error creating protocol coordinator task");
+    if (!GLOBAL_STATE.SELF_TEST_MODULE.is_active) {
+        protocol_coordinator_init(&GLOBAL_STATE);
+        if (xTaskCreateWithCaps(protocol_coordinator_task, "protocol coord", 3072,
+                                (void *) &GLOBAL_STATE, 5, NULL,
+                                MALLOC_CAP_SPIRAM) != pdPASS) {
+            ESP_LOGE(TAG, "Error creating protocol coordinator task");
+        }
     }
 
     if (GLOBAL_STATE.SELF_TEST_MODULE.is_active) {
