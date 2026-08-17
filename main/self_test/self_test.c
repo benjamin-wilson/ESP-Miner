@@ -300,6 +300,7 @@ esp_err_t self_test_init(void * pvParameters)
         GlobalState * GLOBAL_STATE = (GlobalState *) pvParameters;
 
         GLOBAL_STATE->SELF_TEST_MODULE.is_active = true;
+        GLOBAL_STATE->SELF_TEST_MODULE.is_factory = isFactoryTest;
         pthread_mutex_init(&GLOBAL_STATE->SELF_TEST_MODULE.nonce_measurement.lock, NULL);
         GLOBAL_STATE->DEVICE_CONFIG.family.asic.difficulty = DIFFICULTY;
         GLOBAL_STATE->SYSTEM_MODULE.is_connected = true;
@@ -746,7 +747,13 @@ static void tests_done(GlobalState * GLOBAL_STATE, bool isTestPassed)
 {
     GLOBAL_STATE->SELF_TEST_MODULE.is_finished = true;
     self_test_stop_nonce_measurement(GLOBAL_STATE);
-    VCORE_set_voltage(GLOBAL_STATE, 0.0f);
+    if (VCORE_is_initialized()) {
+        if (VCORE_set_voltage(GLOBAL_STATE, 0.0f) != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to turn off VCORE after self-test");
+        }
+    } else {
+        ESP_LOGW(TAG, "Skipping VCORE shutdown because the regulator was not initialized");
+    }
     asic_hold_reset_low();
 
     if (isTestPassed) {

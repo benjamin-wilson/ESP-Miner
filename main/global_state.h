@@ -140,6 +140,7 @@ typedef struct
 typedef struct
 {
     bool is_active;
+    bool is_factory;
     bool is_finished;
     SelfTestNonceMeasurement nonce_measurement;
     const char *message;
